@@ -2,7 +2,9 @@ package cache
 
 import (
 	"fmt"
+	"log"
 	"sync"
+	"time"
 )
 
 type Cache struct {
@@ -33,16 +35,28 @@ func (c *Cache) Has(key []byte) bool {
 	return ok
 }
 
-func (c *Cache) Set(key []byte) ([]byte, error) {
+func (c *Cache) Get(key []byte) ([]byte, error) {
 	c.lock.RLock()
-	c.lock.RUnlock()
+	defer c.lock.RUnlock()
 
-	keystr := string(key)
-
-	val, ok := c.data[keystr]
+	val, ok := c.data[string(key)]
 	if !ok {
 		return nil, fmt.Errorf("key not found")
 	}
 
 	return val, nil
+}
+
+func (c *Cache) Set(key []byte, value []byte, ttl time.Duration) error {
+	c.lock.Lock()
+	defer c.lock.Unlock()
+
+	c.data[string(key)] = value
+	log.Print("setting key: ", string(key), " with value: ", string(value))
+	ticker := time.NewTicker(ttl)
+	go func() {
+		<-ticker.C
+		delete(c.data, string(key))
+	}()
+	return nil
 }
